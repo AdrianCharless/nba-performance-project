@@ -8,8 +8,51 @@ def load_raw_from_sqlite(db_path="nba.db"):
     conn.close
     return df
 
+def fetch_opponent(matchup: str) -> str:
+    if not isinstance(matchup, str):
+        return None
+    parts = matchup.split()
+    if len(parts) >= 3:
+        return parts[-1]
+    return None
+
+def add_opponent_def_features(df: pd.DataFrame) -> pd.DataFrame:
+    df["OPPONENT_TEAM"] = df["MATCHUP"].apply(fetch_opponent)
+    opponent_defense = (
+        df.groupby(["SEASON", "OPPONENT_TEAM"])
+        .agg(
+            OPP_PTS_ALLOWED=("PTS", "mean"),
+            OPP_REB_ALLOWED=("REB", "mean"),
+            OPP_AST_ALLOWED=("AST", "mean"),
+        )
+        .reset_index()
+    )
+
+    opponent_defense["OPPONENT_PTS_ALLOWED_RANK"] = (
+        opponent_defense.groupby("SEASON")["OPP_PTS_ALLOWED"]
+        .rank(method="dense", ascending=True)
+    )
+    opponent_defense["OPPONENT_REB_ALLOWED_RANK"] = (
+        opponent_defense.groupby("SEASON")["OPP_REB_ALLOWED"]
+        .rank(method="dense", ascending=True)
+    )
+    opponent_defense["OPPONENT_AST_ALLOWED_RANK"] = (
+        opponent_defense.groupby("SEASON")["OPP_AST_ALLOWED"]
+        .rank(method="dense", ascending=True)
+    )
+
+    df = df.merge(
+        opponent_defense,
+        on=["SEASON", "OPPONENT_TEAM"],
+        how="left",
+    )
+
+    return df
+
+ 
 def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     df["GAME_DATE"] = pd.to_datetime(df["GAME_DATE"])
+    df = add_opponent_def_features(df)
     df = df.sort_values(["PLAYER_NAME", "GAME_DATE"])
     group = df.groupby("PLAYER_NAME")
 
@@ -43,4 +86,4 @@ if __name__ == "__main__":
 
     save_path = root / "data" / "processed" / "features.csv"
     save_features(df_features, str(save_path))
-    
+
