@@ -28,15 +28,15 @@ def add_opponent_def_features(df: pd.DataFrame) -> pd.DataFrame:
         .reset_index()
     )
 
-    opponent_defense["OPPONENT_PTS_ALLOWED_RANK"] = (
+    opponent_defense["OPP_PTS_ALLOWED_RANK"] = (
         opponent_defense.groupby("SEASON")["OPP_PTS_ALLOWED"]
         .rank(method="dense", ascending=True)
     )
-    opponent_defense["OPPONENT_REB_ALLOWED_RANK"] = (
+    opponent_defense["OPP_REB_ALLOWED_RANK"] = (
         opponent_defense.groupby("SEASON")["OPP_REB_ALLOWED"]
         .rank(method="dense", ascending=True)
     )
-    opponent_defense["OPPONENT_AST_ALLOWED_RANK"] = (
+    opponent_defense["OPP_AST_ALLOWED_RANK"] = (
         opponent_defense.groupby("SEASON")["OPP_AST_ALLOWED"]
         .rank(method="dense", ascending=True)
     )
@@ -49,7 +49,7 @@ def add_opponent_def_features(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
- 
+
 def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     df["GAME_DATE"] = pd.to_datetime(df["GAME_DATE"])
     df = add_opponent_def_features(df)
