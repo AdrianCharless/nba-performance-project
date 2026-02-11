@@ -55,7 +55,7 @@ def save_artifacts(model, df_test: pd.DataFrame, feature_cols, root: Path):
     models_dir = root / "models"
     models_dir.mkdir(exist_ok=True)
 
-    model_path = models_dir / "rf_pts_predictor.pk1"
+    model_path = models_dir / "rf_pts_predictor.pkl"
     joblib.dump(model, model_path)
     print(f"Saved model to {model_path}")
 
