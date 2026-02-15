@@ -4,16 +4,16 @@
 # Data artifacts
 data/raw/
 data/processed/
+*.csv
 
 # Model artifacts
 models/
 *.pkl
 *.joblib
 
-# Python cache
-__pycache__/
-*.pyc
-
 # Env / secrets
 .env
 
+# Python cache
+__pycache__/
+*.pyc
