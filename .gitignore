@@ -13,6 +13,7 @@ models/
 
 # Env / secrets
 .env
+.venv/
 
 # Python cache
 __pycache__/
