@@ -1,0 +1,41 @@
+name: Daily NBA Medallion Pipeline
+
+on:
+    schedule:
+        - cron: "0 11 * * *" # 11am UTC -> 6am EST
+    workflow_dispatch:
+
+ jobs:
+    run-pipeline:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout repo
+              uses: actions/checkout@v4
+
+            - name: Set up Python
+              uses: actions/setup-python@v5
+              with:
+                python-version: "3.11"
+
+            - name: Install dependencies
+              run: |
+                python -m pip install --upgrade pip
+                pip install -r requirements.txt
+
+            - name: Run Bronze ingestion
+              env:
+                DATABASE_URL: ${{ secrets.DATABASE_URL }}
+              run: |
+                python src/ingest_bronze.py
+
+            - name: Build Silver layer
+              env:
+                DATABASE_URL: ${{ secrets.DATABASE_URL }}
+              run: |
+                python src/run_silver.py
+
+            - name: Build Gold layer
+              env:
+                DATABASE_URL: ${{ secrets.DATABASE_URL }}
+              run: |
+                python src/run_gold.py
