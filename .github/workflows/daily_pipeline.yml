@@ -28,6 +28,7 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           LOOKBACK_DAYS: '3'
+          SEASONS: '2025-26'
         run: python src/ingest_bronze.py
 
       - name: Build Silver layer
