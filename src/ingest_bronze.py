@@ -1,33 +1,43 @@
 import os
 import time
 from datetime import datetime, timezone
-
+import random
 import pandas as pd
 from nba_api.stats.endpoints import leaguegamelog
 from sqlalchemy import create_engine, text
 from dotenv import load_dotenv
 
-SEASONS = ["2024-25", "2023-24"]
+SEASONS = ["2024-25"]
 
-def fetch_season(season: str) -> pd.DataFrame:
+def fetch_season(season: str, max_retries: int = 5, base_sleep: float = 3.0) -> pd.DataFrame:
     """
-    Extract data from nba_api.
-    Returns raw game logs for a season.
+    Fetch season data with retries + backoff because stats.nba.com can be slow/rate-limited,
+    especially from CI runner IPs.
     """
-    resp = leaguegamelog.LeagueGameLog(
-        season=season,
-        season_type_all_star="Regular Season",
-        player_or_team_abbreviation="P",
-        timeout=60,
-    )
+    last_err = None
 
-    df = resp.get_data_frames()[0]
+    for attempt in range(1, max_retries + 1):
+        try:
+            resp = leaguegamelog.LeagueGameLog(
+                season=season,
+                season_type_all_star="Regular Season",
+                player_or_team_abbreviation="P",
+                timeout=180,  # was 60; CI often needs more
+            )
+            df = resp.get_data_frames()[0]
+            df["SEASON"] = season
+            df["INGESTED_AT"] = datetime.now(timezone.utc)
+            return df
 
-    # Add ingestion metadata
-    df["SEASON"] = season
-    df["INGESTED_AT"] = datetime.now(timezone.utc)
+        except Exception as e:
+            last_err = e
+            # exponential backoff + jitter
+            sleep_s = base_sleep * (2 ** (attempt - 1)) + random.uniform(0, 1.5)
+            print(f"⚠️ fetch failed for {season} (attempt {attempt}/{max_retries}): {e}")
+            print(f"   sleeping {sleep_s:.1f}s then retrying...")
+            time.sleep(sleep_s)
 
-    return df
+    raise RuntimeError(f"Failed to fetch season {season} after {max_retries} retries") from last_err
 
 def main():
     load_dotenv()
