@@ -1,43 +1,51 @@
 import os
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta, date
 import random
+
 import pandas as pd
 from nba_api.stats.endpoints import leaguegamelog
 from sqlalchemy import create_engine, text
 from dotenv import load_dotenv
 
-SEASONS = ["2024-25"]
+SEASONS = ["2025-26","2024-25"]
+FULL_REFRESH = os.getenv("FULL_REFRESH", "0") == "1"
+LOOKBACK_DAYS = int(os.getenv("LOOKBACK_DAYS", "7"))  # CI uses 3–7 days
 
-def fetch_season(season: str, max_retries: int = 5, base_sleep: float = 3.0) -> pd.DataFrame:
-    """
-    Fetch season data with retries + backoff because stats.nba.com can be slow/rate-limited,
-    especially from CI runner IPs.
-    """
-    last_err = None
+def date_window() -> tuple[str, str]:
+    end = date.today()
+    start = end - timedelta(days=LOOKBACK_DAYS)
+    return start.isoformat(), end.isoformat()
 
-    for attempt in range(1, max_retries + 1):
-        try:
-            resp = leaguegamelog.LeagueGameLog(
-                season=season,
-                season_type_all_star="Regular Season",
-                player_or_team_abbreviation="P",
-                timeout=180,  # was 60; CI often needs more
-            )
-            df = resp.get_data_frames()[0]
-            df["SEASON"] = season
-            df["INGESTED_AT"] = datetime.now(timezone.utc)
-            return df
 
-        except Exception as e:
-            last_err = e
-            # exponential backoff + jitter
-            sleep_s = base_sleep * (2 ** (attempt - 1)) + random.uniform(0, 1.5)
-            print(f"⚠️ fetch failed for {season} (attempt {attempt}/{max_retries}): {e}")
-            print(f"   sleeping {sleep_s:.1f}s then retrying...")
-            time.sleep(sleep_s)
+def fetch_season(season: str) -> pd.DataFrame:
+    start_date = (date.today() - timedelta(days=LOOKBACK_DAYS)).isoformat()
+    end_date = date.today().isoformat()
 
-    raise RuntimeError(f"Failed to fetch season {season} after {max_retries} retries") from last_err
+    if FULL_REFRESH:
+        print("Running FULL refresh (entire season)...")
+        resp = leaguegamelog.LeagueGameLog(
+            season=season,
+            season_type_all_star="Regular Season",
+            player_or_team_abbreviation="P",
+            timeout=120,
+        )
+    else:
+        print(f"Running incremental refresh (last {LOOKBACK_DAYS} days)...")
+        resp = leaguegamelog.LeagueGameLog(
+            season=season,
+            season_type_all_star="Regular Season",
+            player_or_team_abbreviation="P",
+            date_from_nullable=start_date,
+            date_to_nullable=end_date,
+            timeout=60,
+        )
+
+    df = resp.get_data_frames()[0]
+    df["SEASON"] = season
+    df["INGESTED_AT"] = datetime.now(timezone.utc)
+
+    return df
 
 def main():
     load_dotenv()

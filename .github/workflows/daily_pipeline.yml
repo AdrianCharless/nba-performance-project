@@ -27,6 +27,7 @@ jobs:
       - name: Run Bronze ingestion
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          LOOKBACK_DAYS: '3'
         run: python src/ingest_bronze.py
 
       - name: Build Silver layer
