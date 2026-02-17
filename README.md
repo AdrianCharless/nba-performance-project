@@ -3,13 +3,12 @@
 This project implementes an end-to-end data pipeline that ingests NBA game logs, models them using a medallion architecture (bronze -> silver -> Gold), and serves analytics-ready features through a Postgres warehouse and Streamlit dashboard.
 
 # Architecture
-flowchart TD
-  A[nba_api / stats.nba.com] --> B[(Bronze: raw game logs)]
-  B --> C[Silver: cleaned & standardized view]
-  C --> D[Gold: rolling features + opponent ranks]
-  D --> E[Streamlit Dashboard]
-  C --> F[GitHub Actions Scheduler]
-  F --> D
+flowchart TD <br>
+A[nba_api / stats.nba.com] --> B[(Bronze: raw game logs) <br>
+B --> C[Silver: cleaned & standardized view] <br>
+C --> D[Gold: rolling features + opponent ranks] <br>
+D --> E[Streamlit Dashboard] <br>
+C --> F[GitHub Actions Scheduler] <br>
 
 # Medallion Layers
 Bronze
