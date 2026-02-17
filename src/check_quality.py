@@ -18,9 +18,10 @@ CHECKS = [
 
     # Opponent ranks should be within a sane range
     ("Opponent Ranks Not Within Range",
-     """
-     SELECT COUNT(*) FROM gold.player_features
-     WHERE opp_pts_allowed_rank IS NOT NULL AND (opp_pts_allowed_rank < 0 OR opp_pts_allowed_rank > 32);
+     """ 
+    SELECT COUNT(*) FROM gold.player_features
+    WHERE opp_pts_allowed_rank IS NOT NULL
+        AND (opp_pts_allowed_rank < 1 OR opp_pts_allowed_rank > 30);
      """,
      lambda x: x == 0),
 ]
