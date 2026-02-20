@@ -10,12 +10,19 @@ def main():
     engine = create_engine(db_url)
 
     root = Path(__file__).resolve().parents[1]
-    sql_path = root / "sql" / "00_schema.sql"
-    sql = sql_path.read_text(encoding="utf-8")
+
+    sql_files = [
+        root / "sql" / "00_schema.sql",
+        root / "sql" / "01_pipeline_run_log.sql",
+    ]
 
     with engine.begin() as conn:
-        for stmt in [s.strip() for s in sql.split(";") if s.strip()]:
-            conn.execute(text(stmt))
+        for p in sql_files: 
+            sql = p.read_text(encoding="utf-8").strip()
+            if not sql:
+                continue
+            print(f"Running {p.name}")
+            conn.execute(text(sql))
 
     print("Create Medallion Schemas: bronze, silver, gold")
 

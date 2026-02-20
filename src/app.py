@@ -45,3 +45,22 @@ st.dataframe(df, width="stretch")
 st.subheader("Trends")
 df_sorted = df.sort_values("game_date")
 st.line_chart(df_sorted.set_index("game_date")[["pts", "pts_last3", "minutes", "min_last3"]])
+
+st.subheader("Pipeline Run Log (last 20)")
+df_log = pd.read_sql(
+    text("""
+        SELECT
+          run_id::text AS run_id,
+          layer,
+          rows_processed,
+          status,
+          runtime_seconds,
+          error_message,
+          executed_at
+        FROM gold.pipeline_run_log
+        ORDER BY executed_at DESC
+        LIMIT 20
+    """),
+    engine,
+)
+st.dataframe(df_log, width="stretch")
