@@ -15,7 +15,7 @@ import uuid
 
 SEASONS = os.getenv("SEASONS", "2025-26").split(",")
 FULL_REFRESH = os.getenv("FULL_REFRESH", "0") == "1"
-LOOKBACK_DAYS = int(os.getenv("LOOKBACK_DAYS", "2"))
+LOOKBACK_DAYS = int(os.getenv("LOOKBACK_DAYS", "14"))
 
 
 # ===============================
@@ -77,8 +77,8 @@ def fetch_season(season: str, max_retries: int = 4, base_sleep: float = 2.0) -> 
             print(f"   sleeping {sleep_s:.1f}s then retrying...")
             time.sleep(sleep_s)
 
-    f"Failed to fetch season {season} after {max_retries} retries"
-    return None
+    raise Exception(f"Failed to fetch season {season} after {max_retries} retries: {last_err}")
+
     
 
 
