@@ -101,95 +101,102 @@ def main():
     print(f"FULL_REFRESH: {FULL_REFRESH}")
     print(f"LOOKBACK_DAYS: {LOOKBACK_DAYS}")
 
-    try:
-        all_dfs = []
+    all_dfs = []
+    failed_seasons = []
 
-        for season in SEASONS:
-            df = fetch_season(season)
-            if df is None:
-                continue
-            all_dfs.append(df)
-            time.sleep(1)  # light throttle between seasons
+    for season in SEASONS:
+        df = fetch_season(season)
+        if df is None:
+            failed_seasons.append(season)
+            continue
+        all_dfs.append(df)
+        time.sleep(1)  # light throttle between seasons
 
-        if not all_dfs:
-            print("source unavailable / timed out.")
-            runtime = time.time() - start_time
-            with engine.begin() as conn:
-                conn.execute(text("""
-                    INSERT INTO gold.pipeline_run_log
-                      (run_id, layer, rows_processed, status, runtime_seconds, error_message)
-                    VALUES
-                      (:run_id, 'bronze', 0, 'success', :runtime, 'no data fetched');
-                """), {"run_id": run_id, "runtime": runtime})
-            return
-
-        df_all = pd.concat(all_dfs, ignore_index=True)
-        rows = len(df_all)
-        print(f"Rows fetched: {len(df_all)}")
-
-        # Write to temp table
-        df_all.to_sql(
-            "player_game_logs_tmp",
-            engine,
-            schema="bronze",
-            if_exists="replace",
-            index=False
-        )
-
-        # Upsert into permanent table
-        with engine.begin() as conn:
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS bronze.player_game_logs AS
-                SELECT * FROM bronze.player_game_logs_tmp WHERE 1=0;
-            """))
-
-            conn.execute(text("""
-                DO $$
-                BEGIN
-                    IF NOT EXISTS (
-                        SELECT 1 FROM pg_constraint
-                        WHERE conname = 'bronze_game_logs_unique'
-                    ) THEN
-                        ALTER TABLE bronze.player_game_logs
-                        ADD CONSTRAINT bronze_game_logs_unique
-                        UNIQUE ("SEASON","GAME_ID","PLAYER_ID");
-                    END IF;
-                END$$;
-            """))
-
-            conn.execute(text("""
-                INSERT INTO bronze.player_game_logs
-                SELECT * FROM bronze.player_game_logs_tmp
-                ON CONFLICT ("SEASON","GAME_ID","PLAYER_ID")
-                DO UPDATE SET
-                    "INGESTED_AT" = EXCLUDED."INGESTED_AT";
-            """))
-
-            conn.execute(text("DROP TABLE bronze.player_game_logs_tmp;"))
-
+    if not all_dfs:
+        print("⚠️ No data fetched - API unavailable or all seasons failed.")
         runtime = time.time() - start_time
-        with engine.begin() as conn:
-            conn.execute(text("""
-                INSERT INTO gold.pipeline_run_log
-                  (run_id, layer, rows_processed, status, runtime_seconds)
-                VALUES
-                  (:run_id, 'bronze', :rows, 'success', :runtime);
-            """), {"run_id": run_id, "rows": rows, "runtime": runtime})
-
-        print("=== Bronze ingestion completed successfully ===")
-
-    except Exception as e:
-        runtime = time.time() - start_time
-        err = str(e)[:2000]
         with engine.begin() as conn:
             conn.execute(text("""
                 INSERT INTO gold.pipeline_run_log
                   (run_id, layer, rows_processed, status, runtime_seconds, error_message)
                 VALUES
-                  (:run_id, 'bronze', NULL, 'failure', :runtime, :err);
-            """), {"run_id": run_id, "runtime": runtime, "err": err})
-        raise
+                  (:run_id, 'bronze', 0, 'warning', :runtime, :msg);
+            """), {
+                "run_id": run_id, 
+                "runtime": runtime,
+                "msg": f"API timeout - failed seasons: {','.join(failed_seasons)}"
+            })
+        # Exit with 0 so CI doesn't fail
+        return
 
+    df_all = pd.concat(all_dfs, ignore_index=True)
+    rows = len(df_all)
+    print(f"✓ Rows fetched: {rows}")
+    
+    if failed_seasons:
+        print(f"⚠️ Some seasons failed: {failed_seasons}")
+
+    # ... rest of your upsert logic ...
+    
+    # Write to temp table
+    df_all.to_sql(
+        "player_game_logs_tmp",
+        engine,
+        schema="bronze",
+        if_exists="replace",
+        index=False
+    )
+
+    # Upsert into permanent table
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS bronze.player_game_logs AS
+            SELECT * FROM bronze.player_game_logs_tmp WHERE 1=0;
+        """))
+
+        conn.execute(text("""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_constraint
+                    WHERE conname = 'bronze_game_logs_unique'
+                ) THEN
+                    ALTER TABLE bronze.player_game_logs
+                    ADD CONSTRAINT bronze_game_logs_unique
+                    UNIQUE ("SEASON","GAME_ID","PLAYER_ID");
+                END IF;
+            END$$;
+        """))
+
+        conn.execute(text("""
+            INSERT INTO bronze.player_game_logs
+            SELECT * FROM bronze.player_game_logs_tmp
+            ON CONFLICT ("SEASON","GAME_ID","PLAYER_ID")
+            DO UPDATE SET
+                "INGESTED_AT" = EXCLUDED."INGESTED_AT";
+        """))
+
+        conn.execute(text("DROP TABLE bronze.player_game_logs_tmp;"))
+
+    runtime = time.time() - start_time
+    status = 'partial' if failed_seasons else 'success'
+    error_msg = f"Failed seasons: {','.join(failed_seasons)}" if failed_seasons else None
+    
+    with engine.begin() as conn:
+        conn.execute(text("""
+            INSERT INTO gold.pipeline_run_log
+              (run_id, layer, rows_processed, status, runtime_seconds, error_message)
+            VALUES
+              (:run_id, 'bronze', :rows, :status, :runtime, :err);
+        """), {
+            "run_id": run_id, 
+            "rows": rows, 
+            "runtime": runtime,
+            "status": status,
+            "err": error_msg
+        })
+
+    print(f"=== Bronze ingestion completed: {status} ===")
 
 if __name__ == "__main__":
     main()
