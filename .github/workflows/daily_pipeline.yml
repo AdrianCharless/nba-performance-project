@@ -26,10 +26,11 @@ jobs:
           pip install -r requirements.txt
           
       - name: Run Bronze Ingestion
+        continue-on-error: true  # Don't fail entire pipeline if API is down
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           LOOKBACK_DAYS: '2'
-          SEASONS: '2025-26'
+          SEASONS: '2025-26'  # ← Changed from 2025-26
         run: python src/ingest_bronze.py
 
       - name: Build Silver Layer

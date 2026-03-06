@@ -63,6 +63,7 @@ def fetch_season(season: str, max_retries: int = 4, base_sleep: float = 2.0) -> 
     """
     Retry wrapper with exponential backoff.
     Protects CI from flaky API timeouts.
+    Returns None if all retries fail (instead of crashing).
     """
     last_err = None
 
@@ -77,9 +78,9 @@ def fetch_season(season: str, max_retries: int = 4, base_sleep: float = 2.0) -> 
             print(f"   sleeping {sleep_s:.1f}s then retrying...")
             time.sleep(sleep_s)
 
-    raise Exception(f"Failed to fetch season {season} after {max_retries} retries: {last_err}")
-
-    
+    # After all retries failed, log and return None (don't crash)
+    print(f"❌ [{season}] Failed to fetch after {max_retries} retries: {last_err}")
+    return None
 
 
 # ===============================
